@@ -1,5 +1,5 @@
 // public/sw.js
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   // Fuerza al Service Worker a activarse inmediatamente
   self.skipWaiting();
 });

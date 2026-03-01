@@ -18,5 +18,11 @@
     "express": "^5.2.1",
     "firebase-admin": "^13.7.0",
     "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@eslint/json": "^1.0.1",
+    "eslint": "^10.0.2",
+    "globals": "^17.4.0"
   }
 }

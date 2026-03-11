@@ -1,5 +1,5 @@
 import { subscriptionStore } from '../storage/subscriptionStore.js';
-import { sendBroadcast, sendBroadcastDrivers } from '../services/pushService.js';
+import { sendBroadcast, sendBroadcastDrivers, sendBroadcastUser } from '../services/pushService.js';
 
 export const getPublicKey = (req, res) => {
     res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
@@ -47,4 +47,14 @@ export const getSubscriptions = async (req, res) => {
     const subs = await subscriptionStore.getAll();
 
     res.json({ total: subs.length, subscriptions: subs });
+};
+
+export const notifyUser = async (req, res) => {
+    try {
+        const { title, message, userId } = req.body;
+        const sentTo = await sendBroadcastUser(title, message,  userId);
+        res.json({ success: true, sentTo });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 };

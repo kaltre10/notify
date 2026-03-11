@@ -49,5 +49,15 @@ export const subscriptionStore = {
     getCount: async () => {
         const snapshot = await subsRef.once('value');
         return snapshot.numChildren();
+    },
+    
+    // Obtener suscripciones por userId
+    getByUserId: async (userId) => {
+        const snapshot = await subsRef
+            .orderByChild('user/id')
+            .equalTo(userId)
+            .once('value');
+        const data = snapshot.val();
+        return data ? Object.values(data) : [];
     }
 };

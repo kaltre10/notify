@@ -1,10 +1,11 @@
 import { webpush } from '../config/webpush.js';
 import { subscriptionStore } from '../storage/subscriptionStore.js';
 
-const payload = (title, message) => JSON.stringify({
-    title: title || "Giro Rides",
-    message: message || "Tienes un mensaje."
-});
+const payload = (
+    title = "Giro Rides",
+    message = "Tienes un mensaje.",
+    url = "https://girorides.com") =>
+    JSON.stringify({ title, message, url });
 
 export const sendBroadcast = async (title, message) => {
 
@@ -12,7 +13,8 @@ export const sendBroadcast = async (title, message) => {
 
     const promises = subs.map(async (sub) => {
         try {
-            await webpush.sendNotification(sub, payload(title, message));
+            const url = null
+            await webpush.sendNotification(sub, payload(title, message, url));
         } catch (err) {
             if (err.statusCode === 410 || err.statusCode === 404) {
                 console.log("Suscripción expirada, eliminando de Firebase...");
@@ -26,13 +28,13 @@ export const sendBroadcast = async (title, message) => {
 };
 
 export const sendBroadcastDrivers = async (title, message, vehicleType) => {
-    
 
     const subs = await subscriptionStore.getDrivers(vehicleType); // Esperamos a Firebase
 
     const promises = subs.map(async (sub) => {
         try {
-            await webpush.sendNotification(sub, payload(title, message));
+            const url = "https://girorides.com/drivers"
+            await webpush.sendNotification(sub, payload(title, message, url));
         } catch (err) {
             if (err.statusCode === 410 || err.statusCode === 404) {
                 console.log("Suscripción expirada, eliminando de Firebase...");
@@ -46,11 +48,12 @@ export const sendBroadcastDrivers = async (title, message, vehicleType) => {
 };
 
 export const sendBroadcastUser = async (title, message, userId) => {
-    
+
     const subs = await subscriptionStore.getByUserId(userId); // Esperamos a Firebase
     const promises = subs.map(async (sub) => {
         try {
-            await webpush.sendNotification(sub, payload(title, message));   
+            const url = "https://girorides.com/dashboard"
+            await webpush.sendNotification(sub, payload(title, message, url));
         } catch (err) {
             if (err.statusCode === 410 || err.statusCode === 404) {
                 console.log("Suscripción expirada, eliminando de Firebase...");

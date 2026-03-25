@@ -28,9 +28,7 @@ export const sendBroadcast = async (title, message) => {
 };
 
 export const sendBroadcastDrivers = async (title, message, vehicleType) => {
-
-    const subs = await subscriptionStore.getDrivers(vehicleType); // Esperamos a Firebase
-
+    const subs = await subscriptionStore.getDrivers(vehicleType);
     const promises = subs.map(async (sub) => {
         try {
             const url = "https://girorides.com/drivers"
@@ -42,7 +40,6 @@ export const sendBroadcastDrivers = async (title, message, vehicleType) => {
             }
         }
     });
-
     await Promise.all(promises);
     return await subscriptionStore.getCount();
 };
@@ -67,9 +64,7 @@ export const sendBroadcastUser = async (title, message, userId) => {
 }
 
 export const sendBroadcastAdmin = async (title, message) => {
-
-    const subs = await subscriptionStore.getAdmins(); // Esperamos a Firebase
-
+    const subs = await subscriptionStore.getAdmins();
     const promises = subs.map(async (sub) => {
         try {
             const url = "https://girorides.com/admin"

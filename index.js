@@ -15,6 +15,10 @@ app.get('/', (req, res) => {res.send("🚀 Giro Rides API");});
 
 router(app)
 
-app.listen(PORT, () => {
-    console.log(`✅ Servidor corriendo en: http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`✅ Servidor corriendo en: http://localhost:${PORT}`);
+    });
+}
+
+export default app;

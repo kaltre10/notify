@@ -31,8 +31,9 @@ try {
 if (serviceAccount) {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    databaseURL: process.env.FIREBASE_DATABASE_URL // Ej: https://tu-app.firebaseio.com
+    databaseURL: process.env.applicationDefault // Ej: https://tu-app.firebaseio.com
   });
 }
 
 export const db = admin.apps.length ? admin.database() : null;
+export const firestore = admin.apps.length ? admin.firestore() : null;

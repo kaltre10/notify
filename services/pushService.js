@@ -1,7 +1,7 @@
 import { webpush } from '../config/webpush.js';
 import { subscriptionStore } from '../storage/subscriptionStore.js';
 import { Expo } from 'expo-server-sdk';
-import admin from 'firebase-admin';
+import { firestore } from '../config/firebase.js';
 
 const expo = new Expo();
 
@@ -40,15 +40,30 @@ export const sendBroadcast = async (title, message) => {
     }
   }));
 
-  const usersSnap = await admin.firestore().collection('users').get();
-  const tokens = [];
-  usersSnap.forEach(d => {
-    const t = d.data()?.expoPushToken;
-    if (t) tokens.push(t);
-  });
-  const tickets = await sendExpoToTokens(tokens, title, message, 'https://girorides.com');
+  let expoTokens = [];
+  if (firestore) {
+    try {
+      const usersSnap = await firestore.collection('users').get();
+      usersSnap.forEach(d => {
+        const t = d.data()?.expoPushToken;
+        if (t) expoTokens.push(t);
+      });
+    } catch (e) {
+      console.error("Error reading Firestore tokens for Broadcast:", e);
+    }
+  }
 
-  return { webSentTo: subs.length, mobileSentTo: tokens.length, tickets };
+  // Also check Realtime DB subscriptions for expoPushTokens as fallback
+  const rtdbSubs = await subscriptionStore.getAll();
+  rtdbSubs.forEach(sub => {
+    if (sub.expoPushToken && !expoTokens.includes(sub.expoPushToken)) {
+      expoTokens.push(sub.expoPushToken);
+    }
+  });
+
+  const tickets = await sendExpoToTokens(expoTokens, title, message, 'https://girorides.com');
+
+  return { webSentTo: subs.length, mobileSentTo: expoTokens.length, tickets };
 };
 
 export const sendBroadcastDrivers = async (title, message, vehicleType) => {
@@ -63,18 +78,32 @@ export const sendBroadcastDrivers = async (title, message, vehicleType) => {
     }
   }));
 
-  let q = admin.firestore().collection('users').where('hasVehicle', '==', true);
-  if (vehicleType) q = q.where('vehicleType', '==', vehicleType);
-  const snap = await q.get();
+  let expoTokens = [];
+  if (firestore) {
+    try {
+      let q = firestore.collection('users').where('hasVehicle', '==', true);
+      if (vehicleType) q = q.where('vehicleType', '==', vehicleType);
+      const snap = await q.get();
+      snap.forEach(d => {
+        const t = d.data()?.expoPushToken;
+        if (t) expoTokens.push(t);
+      });
+    } catch (e) {
+      console.error("Error reading Firestore drivers:", e);
+    }
+  }
 
-  const tokens = [];
-  snap.forEach(d => {
-    const t = d.data()?.expoPushToken;
-    if (t) tokens.push(t);
+  // Check RTDB for Expo Tokens of Drivers
+  const rtdbDrivers = await subscriptionStore.getDrivers(vehicleType);
+  rtdbDrivers.forEach(sub => {
+    if (sub.expoPushToken && !expoTokens.includes(sub.expoPushToken)) {
+      expoTokens.push(sub.expoPushToken);
+    }
   });
-  const tickets = await sendExpoToTokens(tokens, title, message, 'https://girorides.com/drivers');
 
-  return { webSentTo: subs.length, mobileSentTo: tokens.length, tickets };
+  const tickets = await sendExpoToTokens(expoTokens, title, message, 'https://girorides.com/drivers');
+
+  return { webSentTo: subs.length, mobileSentTo: expoTokens.length, tickets };
 };
 
 export const sendBroadcastUser = async (title, message, userId) => {
@@ -89,8 +118,25 @@ export const sendBroadcastUser = async (title, message, userId) => {
     }
   }));
 
-  const userDoc = await admin.firestore().collection('users').doc(userId).get();
-  const token = userDoc.exists ? (userDoc.data()?.expoPushToken ?? null) : null;
+  let token = null;
+  if (firestore) {
+    try {
+      const userDoc = await firestore.collection('users').doc(userId).get();
+      token = userDoc.exists ? (userDoc.data()?.expoPushToken ?? null) : null;
+    } catch (e) {
+      console.error("Error reading Firestore user:", e);
+    }
+  }
+
+  // Fallback to RTDB
+  if (!token) {
+    const userSubs = await subscriptionStore.getByUserId(userId);
+    const subWithExpo = userSubs.find(s => s.expoPushToken);
+    if (subWithExpo) {
+      token = subWithExpo.expoPushToken;
+    }
+  }
+
   const tickets = token ? await sendExpoToTokens([token], title, message, 'https://girorides.com/dashboard') : [];
 
   return { webSentTo: subs.length, mobileSentTo: token ? 1 : 0, tickets };
@@ -108,13 +154,28 @@ export const sendBroadcastAdmin = async (title, message) => {
     }
   }));
 
-    const adminsSnap = await admin.firestore().collection('users').where('isAdmin', '==', true).get();
-  const tokens = [];
-  adminsSnap.forEach(d => {
-    const t = d.data()?.expoPushToken;
-    if (t) tokens.push(t);
-  });
-  const tickets = await sendExpoToTokens(tokens, title, message, 'https://girorides.com/admin');
+    let expoTokens = [];
+  if (firestore) {
+    try {
+      const adminsSnap = await firestore.collection('users').where('isAdmin', '==', true).get();
+      adminsSnap.forEach(d => {
+        const t = d.data()?.expoPushToken;
+        if (t) expoTokens.push(t);
+      });
+    } catch (e) {
+      console.error("Error reading Firestore admins:", e);
+    }
+  }
 
-  return { webSentTo: subs.length, mobileSentTo: tokens.length, tickets };
+  // Check RTDB for Expo Tokens of Admins
+  const rtdbAdmins = await subscriptionStore.getAdmins();
+  rtdbAdmins.forEach(sub => {
+    if (sub.expoPushToken && !expoTokens.includes(sub.expoPushToken)) {
+      expoTokens.push(sub.expoPushToken);
+    }
+  });
+
+  const tickets = await sendExpoToTokens(expoTokens, title, message, 'https://girorides.com/admin');
+
+  return { webSentTo: subs.length, mobileSentTo: expoTokens.length, tickets };
 };

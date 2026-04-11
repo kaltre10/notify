@@ -110,7 +110,9 @@ export const sendBroadcastUser = async (title, message, userId) => {
   const subs = await subscriptionStore.getByUserId(userId);
   await Promise.all(subs.map(async (sub) => {
     try {
-      await webpush.sendNotification(sub, webPayload(title, message, 'https://girorides.com/dashboard'));
+      if (sub.endpoint && !sub.endpoint.includes('ExponentPushToken')) {
+        await webpush.sendNotification(sub, webPayload(title, message, 'https://girorides.com/dashboard'));
+      }
     } catch (err) {
       if (err.statusCode === 410 || err.statusCode === 404) {
         await subscriptionStore.removeByEndpoint(sub.endpoint);
@@ -131,9 +133,9 @@ export const sendBroadcastUser = async (title, message, userId) => {
   // Fallback to RTDB
   if (!token) {
     const userSubs = await subscriptionStore.getByUserId(userId);
-    const subWithExpo = userSubs.find(s => s.expoPushToken);
+    const subWithExpo = userSubs.find(s => s.expoPushToken || (s.endpoint && s.endpoint.includes('ExponentPushToken')));
     if (subWithExpo) {
-      token = subWithExpo.expoPushToken;
+      token = subWithExpo.expoPushToken || subWithExpo.endpoint;
     }
   }
 

@@ -31,7 +31,7 @@ try {
 if (serviceAccount) {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    databaseURL: process.env.FIREBASE_DATABASE_URL // Ej: https://tu-app.firebaseio.com
+    databaseURL: process.env.applicationDefault // Ej: https://tu-app.firebaseio.com
   });
 }
 

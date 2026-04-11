@@ -13,10 +13,11 @@ const sendExpoToTokens = async (tokens, title, message, url) => {
     .filter(t => Expo.isExpoPushToken(t))
     .map(t => ({
       to: t,
-      sound: 'default',
+      sound: 'uber.wav', // Llama al sonido personalizado
       title,
       body: message,
       data: url ? { url } : {},
+      channelId: 'default', // Importante para Android
     }));
 
   const chunks = expo.chunkPushNotifications(messages);
@@ -114,6 +115,7 @@ export const sendBroadcastUser = async (title, message, userId) => {
         await webpush.sendNotification(sub, webPayload(title, message, 'https://girorides.com/dashboard'));
       }
     } catch (err) {
+      console.error(`[sendBroadcastUser] Web Push error:`, err);
       if (err.statusCode === 410 || err.statusCode === 404) {
         await subscriptionStore.removeByEndpoint(sub.endpoint);
       }
@@ -126,8 +128,10 @@ export const sendBroadcastUser = async (title, message, userId) => {
       const userDoc = await firestore.collection('users').doc(userId).get();
       token = userDoc.exists ? (userDoc.data()?.expoPushToken ?? null) : null;
     } catch (e) {
-      console.error("Error reading Firestore user:", e);
+      console.error("[sendBroadcastUser] Error reading Firestore user:", e);
     }
+  } else {
+    console.log(`[sendBroadcastUser] Firestore not initialized, skipping Firestore lookup.`);
   }
 
   // Fallback to RTDB
@@ -136,10 +140,17 @@ export const sendBroadcastUser = async (title, message, userId) => {
     const subWithExpo = userSubs.find(s => s.expoPushToken || (s.endpoint && s.endpoint.includes('ExponentPushToken')));
     if (subWithExpo) {
       token = subWithExpo.expoPushToken || subWithExpo.endpoint;
+    } else {
+      console.log(`[sendBroadcastUser] No Expo token found in RTDB fallback either.`);
     }
   }
 
-  const tickets = token ? await sendExpoToTokens([token], title, message, 'https://girorides.com/dashboard') : [];
+  let tickets = [];
+  if (token) {
+    tickets = await sendExpoToTokens([token], title, message, 'https://girorides.com/dashboard');
+  } else {
+    console.log(`[sendBroadcastUser] Cannot send Mobile Push: No Expo token found for user ${userId}`);
+  }
 
   return { webSentTo: subs.length, mobileSentTo: token ? 1 : 0, tickets };
 };

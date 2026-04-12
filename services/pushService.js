@@ -17,7 +17,7 @@ const sendExpoToTokens = async (tokens, title, message, url) => {
       title,
       body: message,
       data: url ? { url } : {},
-      channelId: 'default', // Importante para Android
+      channelId: 'giro-sound', // Importante para Android
     }));
 
   const chunks = expo.chunkPushNotifications(messages);

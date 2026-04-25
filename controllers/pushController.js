@@ -34,8 +34,8 @@ export const notifyAll = async (req, res) => {
 
 export const notifyDrivers = async (req, res) => {
     try {
-        const { title, message, vehicleType } = req.body;
-        const sentTo = await sendBroadcastDrivers(title, message, vehicleType);
+        const { title, message, vehicleType, serviceType } = req.body;
+        const sentTo = await sendBroadcastDrivers(title, message, vehicleType, serviceType);
         res.json({ success: true, sentTo });
     } catch (error) {
         res.status(500).json({ error: error.message });

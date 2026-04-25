@@ -67,7 +67,7 @@ export const sendBroadcast = async (title, message) => {
   return { webSentTo: subs.length, mobileSentTo: expoTokens.length, tickets };
 };
 
-export const sendBroadcastDrivers = async (title, message, vehicleType) => {
+export const sendBroadcastDrivers = async (title, message, vehicleType, serviceType) => {
   const subs = await subscriptionStore.getDrivers(vehicleType);
   await Promise.all(subs.map(async (sub) => {
     try {
@@ -82,15 +82,48 @@ export const sendBroadcastDrivers = async (title, message, vehicleType) => {
   let expoTokens = [];
   if (firestore) {
     try {
-      let q = firestore.collection('users').where('hasVehicle', '==', true);
-      if (vehicleType) q = q.where('vehicleType', '==', vehicleType);
-      const snap = await q.get();
-      snap.forEach(d => {
-        const t = d.data()?.expoPushToken;
-        if (t) expoTokens.push(t);
+      // Fetch matching vehicles instead of just users to check permissions
+      let vehiclesQuery = firestore.collection('vehicles');
+      if (vehicleType) {
+        vehiclesQuery = vehiclesQuery.where('type', '==', vehicleType);
+      }
+      const vehiclesSnap = await vehiclesQuery.get();
+      
+      const validDriverIds = [];
+      vehiclesSnap.forEach(doc => {
+        const vehicleData = doc.data();
+        if (serviceType === 'delivery') {
+          if (vehicleData.acceptsDelivery === true) {
+            validDriverIds.push(doc.id);
+          }
+        } else {
+          // Normal taxi trip
+          if (vehicleData.acceptsTaxi !== false) {
+            validDriverIds.push(doc.id);
+          }
+        }
       });
+
+      if (validDriverIds.length > 0) {
+        // Fetch user documents for these valid drivers to get their push tokens
+        // Note: Firestore 'in' query supports up to 10 items. For production with many drivers,
+        // you might need to batch these or fetch tokens differently.
+        const batchSize = 10;
+        for (let i = 0; i < validDriverIds.length; i += batchSize) {
+          const batchIds = validDriverIds.slice(i, i + batchSize);
+          const usersSnap = await firestore.collection('users')
+            .where('hasVehicle', '==', true)
+            .where(firestore.FieldPath.documentId(), 'in', batchIds)
+            .get();
+            
+          usersSnap.forEach(d => {
+            const t = d.data()?.expoPushToken;
+            if (t) expoTokens.push(t);
+          });
+        }
+      }
     } catch (e) {
-      console.error("Error reading Firestore drivers:", e);
+      console.error("Error reading Firestore drivers for notification:", e);
     }
   }
 

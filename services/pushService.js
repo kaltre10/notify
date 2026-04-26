@@ -2,6 +2,7 @@ import { webpush } from '../config/webpush.js';
 import { subscriptionStore } from '../storage/subscriptionStore.js';
 import { Expo } from 'expo-server-sdk';
 import { firestore } from '../config/firebase.js';
+import admin from 'firebase-admin';
 
 const expo = new Expo();
 
@@ -113,7 +114,7 @@ export const sendBroadcastDrivers = async (title, message, vehicleType, serviceT
           const batchIds = validDriverIds.slice(i, i + batchSize);
           const usersSnap = await firestore.collection('users')
             .where('hasVehicle', '==', true)
-            .where(firestore.FieldPath.documentId(), 'in', batchIds)
+            .where(admin.firestore.FieldPath.documentId(), 'in', batchIds)
             .get();
             
           usersSnap.forEach(d => {

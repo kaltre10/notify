@@ -11,9 +11,7 @@ configureWebPush();
 
 app.use(cors());
 app.use(express.json());
-app.get("/", (req, res) => {
-  res.json({ ok: true });
-});
+app.get('/', (req, res) => {res.send("🚀 Giro Rides API");});
 
 router(app)
 

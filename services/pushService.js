@@ -69,49 +69,36 @@ export const sendBroadcast = async (title, message) => {
 };
 
 export const sendBroadcastDrivers = async (title, message, vehicleType, serviceType) => {
-  const subs = await subscriptionStore.getDrivers(vehicleType);
-  await Promise.all(subs.map(async (sub) => {
-    try {
-      await webpush.sendNotification(sub, webPayload(title, message, 'https://girorides.com/drivers'));
-    } catch (err) {
-      if (err.statusCode === 410 || err.statusCode === 404) {
-        await subscriptionStore.removeByEndpoint(sub.endpoint);
-      }
-    }
-  }));
-
+  let validDriverIds = new Set();
   let expoTokens = [];
+
   if (firestore) {
     try {
-      // Fetch matching vehicles instead of just users to check permissions
       let vehiclesQuery = firestore.collection('vehicles');
       if (vehicleType) {
         vehiclesQuery = vehiclesQuery.where('type', '==', vehicleType);
       }
       const vehiclesSnap = await vehiclesQuery.get();
       
-      const validDriverIds = [];
       vehiclesSnap.forEach(doc => {
         const vehicleData = doc.data();
         if (serviceType === 'delivery') {
           if (vehicleData.acceptsDelivery === true) {
-            validDriverIds.push(doc.id);
+            validDriverIds.add(doc.id);
           }
         } else {
           // Normal taxi trip
           if (vehicleData.acceptsTaxi !== false) {
-            validDriverIds.push(doc.id);
+            validDriverIds.add(doc.id);
           }
         }
       });
 
-      if (validDriverIds.length > 0) {
-        // Fetch user documents for these valid drivers to get their push tokens
-        // Note: Firestore 'in' query supports up to 10 items. For production with many drivers,
-        // you might need to batch these or fetch tokens differently.
+      if (validDriverIds.size > 0) {
+        const driverIdsArray = Array.from(validDriverIds);
         const batchSize = 10;
-        for (let i = 0; i < validDriverIds.length; i += batchSize) {
-          const batchIds = validDriverIds.slice(i, i + batchSize);
+        for (let i = 0; i < driverIdsArray.length; i += batchSize) {
+          const batchIds = driverIdsArray.slice(i, i + batchSize);
           const usersSnap = await firestore.collection('users')
             .where('hasVehicle', '==', true)
             .where(admin.firestore.FieldPath.documentId(), 'in', batchIds)
@@ -128,9 +115,30 @@ export const sendBroadcastDrivers = async (title, message, vehicleType, serviceT
     }
   }
 
-  // Check RTDB for Expo Tokens of Drivers
-  const rtdbDrivers = await subscriptionStore.getDrivers(vehicleType);
-  rtdbDrivers.forEach(sub => {
+  // Check RTDB for web subscriptions and fallback Expo Tokens
+  const allDriversSubs = await subscriptionStore.getDrivers(vehicleType);
+  
+  // Only keep subscriptions for valid drivers
+  const validSubs = allDriversSubs.filter(sub => {
+    // Si no podemos verificar, por seguridad no lo enviamos (o si queremos ser flexibles, lo enviamos)
+    // Para ser estrictos:
+    if (!sub.user || !sub.user.id) return false;
+    return validDriverIds.has(sub.user.id);
+  });
+
+  // 1. Send Web Pushes
+  await Promise.all(validSubs.map(async (sub) => {
+    try {
+      await webpush.sendNotification(sub, webPayload(title, message, 'https://girorides.com/drivers'));
+    } catch (err) {
+      if (err.statusCode === 410 || err.statusCode === 404) {
+        await subscriptionStore.removeByEndpoint(sub.endpoint);
+      }
+    }
+  }));
+
+  // 2. Add Expo Tokens from RTDB
+  validSubs.forEach(sub => {
     if (sub.expoPushToken && !expoTokens.includes(sub.expoPushToken)) {
       expoTokens.push(sub.expoPushToken);
     }
@@ -138,7 +146,7 @@ export const sendBroadcastDrivers = async (title, message, vehicleType, serviceT
 
   const tickets = await sendExpoToTokens(expoTokens, title, message, 'https://girorides.com/drivers');
 
-  return { webSentTo: subs.length, mobileSentTo: expoTokens.length, tickets };
+  return { webSentTo: validSubs.length, mobileSentTo: expoTokens.length, tickets };
 };
 
 export const sendBroadcastUser = async (title, message, userId) => {
